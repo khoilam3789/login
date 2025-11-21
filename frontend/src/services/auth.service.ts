@@ -91,10 +91,16 @@ export class AuthService {
       console.log('🔐 [Login] Step 9: Decrypting DEK...');
       let dek: CryptoKey;
       
-      // TEST MODE: If DEK is test value, generate a fresh DEK instead of decrypting
+      // TEST MODE: If DEK is test value, use a fixed DEK for consistency
       if (authResponse.encryptedDEK === 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB8=') {
-        console.log('⚠️ [Login] Test mode detected - generating new DEK');
-        dek = await crypto.subtle.generateKey(
+        console.log('⚠️ [Login] Test mode detected - using fixed DEK');
+        
+        // Use fixed 32-byte key (all zeros for testing)
+        // This ensures same DEK across login sessions so vault data persists
+        const fixedKeyData = new Uint8Array(32); // All zeros
+        dek = await crypto.subtle.importKey(
+          'raw',
+          fixedKeyData,
           { name: 'AES-GCM', length: 256 },
           true,
           ['encrypt', 'decrypt']

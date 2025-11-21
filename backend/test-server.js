@@ -90,6 +90,24 @@ app.get('/api/v1/vault', async (req, res) => {
   }
 });
 
+// Clear all vault items (for testing)
+app.delete('/api/v1/vault/clear-all', async (req, res) => {
+  try {
+    const result = await VaultItem.deleteMany({ userId: 'test-user-123' });
+    console.log('Cleared all vault items:', result.deletedCount);
+    res.status(200).json({
+      success: true,
+      message: `Deleted ${result.deletedCount} items`
+    });
+  } catch (error) {
+    console.error('Clear vault error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear vault'
+    });
+  }
+});
+
 app.get('/api/v1/vault/:id', async (req, res) => {
   try {
     const item = await VaultItem.findOne({ 
@@ -156,6 +174,16 @@ app.post('/api/v1/auth/get-salt', (req, res) => {
     data: {
       salt: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' // Fixed salt for testing
     }
+  });
+});
+
+app.post('/api/v1/auth/logout', (req, res) => {
+  // For test server, logout is just a success response
+  console.log('Logout request');
+  
+  res.json({
+    success: true,
+    message: 'Logged out successfully'
   });
 });
 
