@@ -36,19 +36,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const checkAuth = async () => {
-      const token = AuthService.getToken();
-      if (token) {
-        // Token exists but we need DEK from login
-        // For now, just set loading to false
-        setIsLoading(false);
-      } else {
+    // Restore auth state from localStorage on mount
+    const restoreAuth = async () => {
+      try {
+        const token = AuthService.getToken();
+        const storedUser = localStorage.getItem('user');
+        const storedDekRaw = localStorage.getItem('dekRaw');
+
+        if (token && storedUser && storedDekRaw) {
+          // Re-import DEK from stored raw key
+          const dekArrayBuffer = Uint8Array.from(atob(storedDekRaw), c => c.charCodeAt(0));
+          const importedDek = await crypto.subtle.importKey(
+            'raw',
+            dekArrayBuffer,
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+          );
+
+          setUser(JSON.parse(storedUser));
+          setDek(importedDek);
+        }
+      } catch (error) {
+        console.error('Failed to restore auth:', error);
+        // Clear invalid data
+        localStorage.removeItem('user');
+        localStorage.removeItem('dekRaw');
+      } finally {
         setIsLoading(false);
       }
     };
 
-    checkAuth();
+    restoreAuth();
   }, []);
 
   const login = async (email: string, masterPassword: string) => {
@@ -61,6 +80,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       setUser(authResponse.user);
       setDek(userDek);
+
+      // Persist auth state to localStorage
+      localStorage.setItem('user', JSON.stringify(authResponse.user));
+      
+      // Export DEK to raw format and store
+      const dekRaw = await crypto.subtle.exportKey('raw', userDek);
+      const dekBase64 = btoa(String.fromCharCode(...new Uint8Array(dekRaw)));
+      localStorage.setItem('dekRaw', dekBase64);
     } catch (error: any) {
       throw error;
     } finally {
@@ -89,6 +116,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setUser(null);
       setDek(null);
+      
+      // Clear persisted auth state
+      localStorage.removeItem('user');
+      localStorage.removeItem('dekRaw');
     }
   };
 
