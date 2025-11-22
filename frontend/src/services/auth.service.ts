@@ -91,12 +91,11 @@ export class AuthService {
       console.log('🔐 [Login] Step 9: Decrypting DEK...');
       let dek: CryptoKey;
       
-      // TEST MODE: If DEK is test value, use a fixed DEK for consistency
+      // TEST MODE: If DEK is test value, use fixed DEK for consistency across sessions
       if (authResponse.encryptedDEK === 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB8=') {
         console.log('⚠️ [Login] Test mode detected - using fixed DEK');
-        
-        // Use fixed 32-byte key (all zeros for testing)
-        // This ensures same DEK across login sessions so vault data persists
+        // Use a fixed 32-byte key (all zeros) for test mode
+        // This ensures the same DEK is used every time, so vault data persists
         const fixedKeyData = new Uint8Array(32); // All zeros
         dek = await crypto.subtle.importKey(
           'raw',

@@ -139,6 +139,72 @@ app.get('/api/v1/vault/:id', async (req, res) => {
   }
 });
 
+app.put('/api/v1/vault/:id', async (req, res) => {
+  try {
+    const { name, encryptedData, iv, category, favorite, tags } = req.body;
+
+    const item = await VaultItem.findOne({ 
+      _id: req.params.id, 
+      userId: 'test-user-123' 
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vault item not found',
+      });
+    }
+
+    // Update fields
+    if (name !== undefined) item.name = name;
+    if (encryptedData !== undefined) item.encryptedData = encryptedData;
+    if (iv !== undefined) item.iv = iv;
+    if (category !== undefined) item.type = category;
+    if (favorite !== undefined) item.favorite = favorite;
+    if (tags !== undefined) item.tags = tags;
+
+    await item.save();
+
+    res.status(200).json({
+      success: true,
+      data: item,
+    });
+  } catch (error) {
+    console.error('Update vault item error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update vault item',
+    });
+  }
+});
+
+app.delete('/api/v1/vault/:id', async (req, res) => {
+  try {
+    const item = await VaultItem.findOneAndDelete({ 
+      _id: req.params.id, 
+      userId: 'test-user-123' 
+    });
+
+    if (!item) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vault item not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Vault item deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete vault item error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete vault item',
+    });
+  }
+});
+
 // Also add auth routes that frontend needs
 // For testing: Use a fixed salt and pre-encrypted DEK that matches test credentials
 // Test credentials: email='test@test.com', password='Test123!'
