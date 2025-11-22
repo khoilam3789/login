@@ -51,7 +51,19 @@ export class OTPService {
   static async getExternalSecrets(): Promise<ExternalSecret[]> {
     try {
       const response = await apiClient.get('/otp/external-secrets');
-      return response.data.secrets;
+      const backendSecrets = response.data.data || [];
+      
+      // Map backend fields to frontend interface
+      return backendSecrets.map((item: any) => ({
+        id: item._id,
+        label: item.name,
+        secret: '', // Don't expose secret in list view
+        issuer: item.issuer,
+        algorithm: 'SHA1' as const,
+        digits: 6 as const,
+        period: 30,
+        createdAt: item.createdAt
+      }));
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Không thể tải dữ liệu');
     }
@@ -62,9 +74,20 @@ export class OTPService {
    */
   static async addExternalSecret(secret: Omit<ExternalSecret, 'id' | 'createdAt'>): Promise<ExternalSecret> {
     try {
-      const response = await apiClient.post('/otp/external-secrets', secret);
-      return response.data.secret;
+      // Map frontend fields to backend fields
+      const payload = {
+        name: secret.label,
+        issuer: secret.issuer || 'Unknown',
+        encryptedSecret: secret.secret, // TODO: Encrypt this with DEK
+        accountName: secret.label,
+        category: 'other', // Use valid enum value
+        notes: ''
+      };
+      
+      const response = await apiClient.post('/otp/external-secrets', payload);
+      return response.data.data; // Backend returns { success, data }
     } catch (error: any) {
+      console.error('Add external secret error:', error.response?.data);
       throw new Error(error.response?.data?.message || 'Không thể thêm secret');
     }
   }
@@ -92,6 +115,18 @@ export class OTPService {
       await apiClient.delete(`/otp/external-secrets/${id}`);
     } catch (error: any) {
       throw new Error(error.response?.data?.message || 'Không thể xóa secret');
+    }
+  }
+
+  /**
+   * Get single external secret with encrypted secret
+   */
+  static async getExternalSecret(id: string): Promise<string> {
+    try {
+      const response = await apiClient.get(`/otp/external-secrets/${id}`);
+      return response.data.data?.encryptedSecret || '';
+    } catch (error: any) {
+      throw new Error(error.response?.data?.message || 'Không thể tải secret');
     }
   }
 

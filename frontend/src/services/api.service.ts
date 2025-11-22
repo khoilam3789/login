@@ -20,6 +20,20 @@ class ApiClient {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+        
+        // Add user email header for vault isolation
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            if (user && user.email) {
+              config.headers['x-user-email'] = user.email;
+            }
+          } catch (e) {
+            console.error('Failed to parse user from localStorage');
+          }
+        }
+        
         return config;
       },
       (error) => {

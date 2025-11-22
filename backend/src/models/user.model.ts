@@ -33,7 +33,6 @@ const userSchema = new Schema<IUser>(
       unique: true,
       lowercase: true,
       trim: true,
-      index: true,
     },
     username: {
       type: String,
@@ -123,8 +122,7 @@ const userSchema = new Schema<IUser>(
 );
 
 // Indexes for performance
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
+// Note: email and username already have indexes from unique: true
 userSchema.index({ createdAt: -1 });
 userSchema.index({ emailVerificationToken: 1 });
 

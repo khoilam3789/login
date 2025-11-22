@@ -40,15 +40,22 @@ export class VaultService {
       const response = await apiClient.get('/vault');
       const encryptedItems = response.data.data || []; // Backend returns { success, data }
 
-      const items = await Promise.all(
-        encryptedItems.map(async (item: any) => {
+      const itemPromises = encryptedItems.map(async (item: any) => {
+        try {
           // Item in list doesn't have encryptedData, need to fetch full item
           const fullItem = await this.getVaultItem(item._id, dek);
           return fullItem;
-        })
-      );
+        } catch (error) {
+          // Skip items that can't be decrypted (encrypted with old DEK)
+          console.warn(`Skipping vault item ${item._id} - cannot decrypt:`, error);
+          return null;
+        }
+      });
 
-      return items;
+      const items = await Promise.all(itemPromises);
+      
+      // Filter out null items (failed decryption)
+      return items.filter((item): item is VaultItem => item !== null);
     } catch (error: any) {
       console.error('Get vault items error:', error);
       throw new Error(error.response?.data?.message || 'Không thể tải dữ liệu');
@@ -74,7 +81,7 @@ export class VaultService {
       return {
         ...decrypted,
         id: item._id,
-        category: item.type as VaultItem['category'], // Backend uses 'type' field
+        category: item.category as VaultItem['category'],
         favorite: item.favorite,
         tags: item.tags || [],
         createdAt: item.createdAt,

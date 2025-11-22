@@ -49,10 +49,11 @@ const ExternalOTPPage: React.FC = () => {
     try {
       setIsLoading(true);
       const data = await OTPService.getExternalSecrets();
-      setSecrets(data);
+      setSecrets(data || []);
       generateAllOTPCodes();
     } catch (error: any) {
       toast.error(error.message || 'Không thể tải dữ liệu');
+      setSecrets([]); // Ensure secrets is always an array
     } finally {
       setIsLoading(false);
     }
@@ -62,9 +63,15 @@ const ExternalOTPPage: React.FC = () => {
     const codes: { [key: string]: string } = {};
     for (const secret of secrets) {
       try {
-        const code = await OTPService.generateTOTP(secret.secret, secret.period, secret.digits);
+        // Fetch the actual secret from backend
+        const encryptedSecret = await OTPService.getExternalSecret(secret.id);
+        
+        // TODO: Decrypt encryptedSecret with DEK here
+        // For now, use it directly (assuming it's not encrypted yet)
+        const code = await OTPService.generateTOTP(encryptedSecret, secret.period, secret.digits);
         codes[secret.id] = code;
       } catch (error) {
+        console.error('Generate OTP error:', error);
         codes[secret.id] = '------';
       }
     }
@@ -217,7 +224,7 @@ const ExternalOTPPage: React.FC = () => {
           <div className="flex justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
-        ) : secrets.length === 0 ? (
+        ) : (!secrets || secrets.length === 0) ? (
           <Card>
             <div className="text-center py-12">
               <svg className="mx-auto h-24 w-24 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

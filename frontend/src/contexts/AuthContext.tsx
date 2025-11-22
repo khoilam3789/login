@@ -73,21 +73,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, masterPassword: string) => {
     try {
       setIsLoading(true);
-      const { authResponse, dek: userDek } = await AuthService.login({
+      const result = await AuthService.login({
         email,
         masterPassword
       });
 
+      // Check if 2FA is required
+      if ((result as any).requires2FA) {
+        // Don't set user/dek yet, just return the temp token
+        return {
+          requires2FA: true,
+          tempToken: (result as any).tempToken
+        };
+      }
+
+      // No 2FA - normal login flow
+      const { authResponse, dek: userDek } = result as any;
       setUser(authResponse.user);
       setDek(userDek);
 
       // Persist auth state to localStorage
       localStorage.setItem('user', JSON.stringify(authResponse.user));
+      localStorage.setItem('token', authResponse.token);
+      localStorage.setItem('refreshToken', authResponse.refreshToken);
       
       // Export DEK to raw format and store
       const dekRaw = await crypto.subtle.exportKey('raw', userDek);
       const dekBase64 = btoa(String.fromCharCode(...new Uint8Array(dekRaw)));
       localStorage.setItem('dekRaw', dekBase64);
+
+      return { requires2FA: false };
     } catch (error: any) {
       throw error;
     } finally {
@@ -120,6 +135,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Clear persisted auth state
       localStorage.removeItem('user');
       localStorage.removeItem('dekRaw');
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
     }
   };
 

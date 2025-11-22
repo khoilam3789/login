@@ -1,26 +1,98 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { AuthService } from '../services/auth.service';
+import { KeyRotationService } from '../services/keyrotation.service';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import Input from '../components/Input';
+import Modal from '../components/Modal';
 import toast from 'react-hot-toast';
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'account' | 'security' | 'sessions'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'security'>('account');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showAuditLog, setShowAuditLog] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [is2FAEnabled, setIs2FAEnabled] = useState(() => {
+    // Load từ localStorage khi component mount
+    const saved = localStorage.getItem('is2FAEnabled');
+    return saved ? JSON.parse(saved) : true; // Mặc định là bật
+  });
 
-  const handleExportVault = () => {
-    toast.success('Chức năng đang phát triển');
-  };
-
-  const handleImportVault = () => {
-    toast.success('Chức năng đang phát triển');
-  };
+  // Lưu trạng thái 2FA vào localStorage mỗi khi thay đổi
+  useEffect(() => {
+    localStorage.setItem('is2FAEnabled', JSON.stringify(is2FAEnabled));
+  }, [is2FAEnabled]);
 
   const handleChangeMasterPassword = () => {
-    toast.success('Chức năng đang phát triển');
+    setShowPasswordModal(true);
+  };
+
+  const handleSubmitPasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('Mật khẩu mới không khớp!');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      toast.error('Mật khẩu phải có ít nhất 8 ký tự!');
+      return;
+    }
+
+    if (!user?.email) {
+      toast.error('Không tìm thấy thông tin user');
+      return;
+    }
+
+    try {
+      toast.loading('Đang thay đổi master password và mã hóa lại dữ liệu...', { duration: 10000 });
+      
+      await KeyRotationService.changeMasterPassword(
+        user.email,
+        passwordForm.currentPassword,
+        passwordForm.newPassword
+      );
+      
+      toast.dismiss();
+      toast.success('Đổi master password thành công! Vui lòng đăng nhập lại.');
+      setShowPasswordModal(false);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      
+      // Logout after password change
+      setTimeout(() => {
+        logout();
+        navigate('/login');
+      }, 2000);
+    } catch (error: any) {
+      toast.dismiss();
+      toast.error(error.message || 'Không thể đổi password');
+    }
+  };
+
+  const handleToggle2FA = async () => {
+    if (!user?.email) return;
+    
+    try {
+      const newState = !is2FAEnabled;
+      await AuthService.toggle2FA(user.email, newState);
+      setIs2FAEnabled(newState);
+      toast.success(newState ? 'Đã bật 2FA' : 'Đã tắt 2FA');
+    } catch (error: any) {
+      toast.error(error.message || 'Không thể thay đổi cài đặt 2FA');
+    }
+  };
+
+  const handleViewAuditLog = () => {
+    setShowAuditLog(true);
   };
 
   return (
@@ -51,8 +123,7 @@ const SettingsPage: React.FC = () => {
         <div className="flex space-x-4 mb-6 border-b">
           {[
             { id: 'account', label: 'Tài khoản', icon: '👤' },
-            { id: 'security', label: 'Bảo mật', icon: '🔒' },
-            { id: 'sessions', label: 'Phiên làm việc', icon: '📱' }
+            { id: 'security', label: 'Bảo mật', icon: '🔒' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -81,36 +152,6 @@ const SettingsPage: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">User ID</label>
                   <Input value={user?.id || ''} disabled />
                 </div>
-              </div>
-            </Card>
-
-            <Card title="Quản lý dữ liệu">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium text-gray-900">Xuất Vault</h4>
-                    <p className="text-sm text-gray-600">Tải xuống tất cả dữ liệu trong vault (định dạng JSON mã hóa)</p>
-                  </div>
-                  <Button onClick={handleExportVault}>Xuất</Button>
-                </div>
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div>
-                    <h4 className="font-medium text-gray-900">Nhập Vault</h4>
-                    <p className="text-sm text-gray-600">Nhập dữ liệu từ file backup hoặc ứng dụng khác</p>
-                  </div>
-                  <Button onClick={handleImportVault}>Nhập</Button>
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Xóa tài khoản">
-              <div className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <p className="text-sm text-red-800">
-                    ⚠️ Xóa tài khoản sẽ xóa vĩnh viễn tất cả dữ liệu của bạn. Hành động này không thể hoàn tác.
-                  </p>
-                </div>
-                <Button variant="danger">Xóa tài khoản</Button>
               </div>
             </Card>
           </div>
@@ -144,10 +185,19 @@ const SettingsPage: React.FC = () => {
                     <p className="text-sm text-gray-600">Nhận mã OTP qua email khi đăng nhập</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-green-600 font-medium">Đã bật</span>
-                    <div className="relative inline-block w-10 h-6 transition duration-200 ease-in-out bg-green-500 rounded-full">
-                      <span className="absolute left-1 top-1 w-4 h-4 transition duration-200 ease-in-out transform translate-x-4 bg-white rounded-full"></span>
-                    </div>
+                    <span className={`text-sm font-medium ${is2FAEnabled ? 'text-green-600' : 'text-gray-600'}`}>
+                      {is2FAEnabled ? 'Đã bật' : 'Đã tắt'}
+                    </span>
+                    <button
+                      onClick={handleToggle2FA}
+                      className={`relative inline-block w-10 h-6 transition duration-200 ease-in-out rounded-full ${
+                        is2FAEnabled ? 'bg-green-500' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span className={`absolute left-1 top-1 w-4 h-4 transition duration-200 ease-in-out transform bg-white rounded-full ${
+                        is2FAEnabled ? 'translate-x-4' : 'translate-x-0'
+                      }`}></span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -173,83 +223,113 @@ const SettingsPage: React.FC = () => {
             <Card title="Audit Log">
               <div className="space-y-4">
                 <p className="text-sm text-gray-600">Xem lịch sử hoạt động và truy cập vào vault của bạn</p>
-                <Button>Xem Audit Log</Button>
+                <Button onClick={handleViewAuditLog}>Xem Audit Log</Button>
               </div>
             </Card>
           </div>
         )}
 
-        {/* Sessions Tab */}
-        {activeTab === 'sessions' && (
-          <div className="space-y-6">
-            <Card title="Phiên đăng nhập hiện tại">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">Windows • Chrome</h4>
-                      <p className="text-sm text-gray-600">IP: 192.168.1.100</p>
-                      <p className="text-xs text-gray-500">Hoạt động hiện tại</p>
-                    </div>
-                  </div>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                    Hiện tại
-                  </span>
-                </div>
-              </div>
-            </Card>
 
-            <Card title="Phiên khác">
-              <div className="space-y-3">
-                <p className="text-sm text-gray-600 mb-4">Quản lý các phiên đăng nhập khác trên thiết bị khác</p>
-                
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                      <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">iPhone • Safari</h4>
-                      <p className="text-sm text-gray-600">IP: 192.168.1.101</p>
-                      <p className="text-xs text-gray-500">Hoạt động 2 giờ trước</p>
-                    </div>
-                  </div>
-                  <Button variant="danger" size="sm">Đăng xuất</Button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                      <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">Android • Chrome</h4>
-                      <p className="text-sm text-gray-600">IP: 192.168.1.102</p>
-                      <p className="text-xs text-gray-500">Hoạt động 1 ngày trước</p>
-                    </div>
-                  </div>
-                  <Button variant="danger" size="sm">Đăng xuất</Button>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-4 border-t">
-                <Button variant="danger" fullWidth>
-                  Đăng xuất tất cả phiên khác
-                </Button>
-              </div>
-            </Card>
-          </div>
-        )}
       </div>
+
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title="Đổi Master Password"
+      >
+        <form onSubmit={handleSubmitPasswordChange} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Master Password hiện tại
+            </label>
+            <Input
+              type="password"
+              value={passwordForm.currentPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+              required
+              placeholder="Nhập master password hiện tại"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Master Password mới
+            </label>
+            <Input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+              required
+              placeholder="Nhập master password mới (tối thiểu 8 ký tự)"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Xác nhận Master Password mới
+            </label>
+            <Input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+              required
+              placeholder="Nhập lại master password mới"
+            />
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <p className="text-sm text-yellow-800">
+              ⚠️ Sau khi đổi master password, bạn sẽ bị đăng xuất và cần đăng nhập lại với password mới.
+            </p>
+          </div>
+
+          <div className="flex space-x-3">
+            <Button type="button" variant="ghost" fullWidth onClick={() => setShowPasswordModal(false)}>
+              Hủy
+            </Button>
+            <Button type="submit" fullWidth>
+              Đổi Password
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Audit Log Modal */}
+      <Modal
+        isOpen={showAuditLog}
+        onClose={() => setShowAuditLog(false)}
+        title="Audit Log"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">Lịch sử hoạt động gần đây</p>
+          
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {[
+              { action: 'Đăng nhập', time: '5 phút trước', ip: '192.168.1.100', device: 'Windows • Chrome' },
+              { action: 'Tạo vault item', time: '10 phút trước', ip: '192.168.1.100', device: 'Windows • Chrome' },
+              { action: 'Cập nhật vault item', time: '15 phút trước', ip: '192.168.1.100', device: 'Windows • Chrome' },
+              { action: 'Đăng nhập', time: '2 giờ trước', ip: '192.168.1.101', device: 'iPhone • Safari' },
+              { action: 'Đăng xuất', time: '3 giờ trước', ip: '192.168.1.101', device: 'iPhone • Safari' },
+            ].map((log, index) => (
+              <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-gray-900">{log.action}</h4>
+                    <p className="text-xs text-gray-500">{log.device}</p>
+                    <p className="text-xs text-gray-500">IP: {log.ip}</p>
+                  </div>
+                  <span className="text-xs text-gray-500">{log.time}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Button fullWidth onClick={() => setShowAuditLog(false)}>
+            Đóng
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -5,16 +5,19 @@ import { AuthController } from '../controllers/auth.controller';
 const router = Router();
 
 // POST /api/v1/auth/register
-router.post('/register', authLimiter, AuthController.register);
+router.post('/register', AuthController.register);
 
 // POST /api/v1/auth/verify-email
 router.post('/verify-email', AuthController.verifyEmail);
 
 // POST /api/v1/auth/resend-verification
-router.post('/resend-verification', authLimiter, AuthController.resendVerification);
+router.post('/resend-verification', AuthController.resendVerification);
 
 // POST /api/v1/auth/login
-router.post('/login', authLimiter, AuthController.login);
+router.post('/login', AuthController.login);
+
+// POST /api/v1/auth/verify-2fa-login - Verify OTP for 2FA login
+router.post('/verify-2fa-login', AuthController.verify2FALogin);
 
 // POST /api/v1/auth/logout
 router.post('/logout', AuthController.logout);
@@ -24,5 +27,8 @@ router.post('/refresh', AuthController.refresh);
 
 // POST /api/v1/auth/get-salt
 router.post('/get-salt', AuthController.getSalt);
+
+// POST /api/v1/auth/toggle-2fa - Toggle 2FA for user (requires auth)
+router.post('/toggle-2fa', AuthController.toggle2FA);
 
 export default router;

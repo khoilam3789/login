@@ -10,6 +10,7 @@ import RegisterPage from './pages/RegisterPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ResendVerificationPage from './pages/ResendVerificationPage';
 import EmailVerificationPendingPage from './pages/EmailVerificationPendingPage';
+import OTPVerifyPage from './pages/OTPVerifyPage';
 import DashboardPage from './pages/DashboardPage';
 import VaultPage from './pages/VaultPage';
 import SettingsPage from './pages/SettingsPage';
@@ -27,6 +28,7 @@ function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/resend-verification" element={<ResendVerificationPage />} />
             <Route path="/email-verification-pending" element={<EmailVerificationPendingPage />} />
+            <Route path="/verify-otp" element={<OTPVerifyPage />} />
 
             {/* Protected routes */}
             <Route

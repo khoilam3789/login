@@ -85,15 +85,10 @@ class Server {
 
     // API routes
     this.app.use(`${baseUrl}/auth`, authRoutes);
-    // TODO: Re-enable authentication middleware after fixing compile errors
-    // this.app.use(`${baseUrl}/vault`, authenticateToken, vaultRoutes);
-    // this.app.use(`${baseUrl}/otp`, authenticateToken, otpRoutes);
-    // this.app.use(`${baseUrl}/user`, authenticateToken, userRoutes);
-    // this.app.use(`${baseUrl}/audit`, authenticateToken, auditRoutes);
-    this.app.use(`${baseUrl}/vault`, vaultRoutes);
-    this.app.use(`${baseUrl}/otp`, otpRoutes);
-    this.app.use(`${baseUrl}/user`, userRoutes);
-    this.app.use(`${baseUrl}/audit`, auditRoutes);
+    this.app.use(`${baseUrl}/vault`, authenticateToken, vaultRoutes);
+    this.app.use(`${baseUrl}/otp`, authenticateToken, otpRoutes);
+    this.app.use(`${baseUrl}/user`, authenticateToken, userRoutes);
+    this.app.use(`${baseUrl}/audit`, authenticateToken, auditRoutes);
 
     // 404 handler
     this.app.use('*', (req, res) => {
@@ -157,3 +152,12 @@ class Server {
 }
 
 export default Server;
+
+// Start server if this file is run directly
+if (require.main === module) {
+  const server = new Server();
+  server.start().catch((error) => {
+    logger.error('Failed to start server:', error);
+    process.exit(1);
+  });
+}

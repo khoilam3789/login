@@ -201,14 +201,6 @@ export class AuthController {
         return;
       } */
 
-      // Check if account is locked
-      if (user.accountLockedUntil && user.accountLockedUntil > new Date()) {
-        res.status(423).json({
-          success: false,
-          message: 'Account is temporarily locked. Please try again later.',
-        });
-        return;
-      }
 
       // Verify password hash
       if (user.passwordHash !== authKeyHash) {
@@ -234,8 +226,46 @@ export class AuthController {
       user.accountLockedUntil = undefined;
       user.lastLoginAt = new Date();
       await user.save();
+        // Update last login time
+        user.lastLoginAt = new Date();
+        await user.save();
 
-      // Generate tokens
+      // Check if 2FA is enabled
+      if (user.twoFactorEnabled) {
+        // Generate OTP and send via email
+        const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+        const otpExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+        
+        // Save OTP to user temporarily (you might want a separate OTP table)
+        user.emailVerificationToken = otp; // Reuse this field temporarily
+        user.emailVerificationExpires = otpExpiry;
+        await user.save();
+
+        // Send OTP email
+        try {
+          await EmailService.sendOTP(user.email, otp);
+          logger.info(`2FA OTP sent to: ${email}`);
+        } catch (emailError: any) {
+          logger.error(`Failed to send 2FA OTP to ${email}:`, emailError.message);
+        }
+
+        // Return temp token for OTP verification
+        const tempToken = jwt.sign(
+          { userId: user._id, email: user.email, purpose: '2fa' },
+          JWT_SECRET,
+          { expiresIn: '10m' }
+        );
+
+        res.status(200).json({
+          success: true,
+          requires2FA: true,
+          tempToken: tempToken,
+          message: 'OTP sent to your email'
+        });
+        return;
+      }
+
+      // Generate tokens (no 2FA required)
       const accessToken = jwt.sign(
         { userId: user._id, email: user.email },
         JWT_SECRET,
@@ -274,6 +304,112 @@ export class AuthController {
         success: false,
         message: 'Login failed',
         error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }
+
+  /**
+   * Verify 2FA OTP after login
+   */
+  static async verify2FALogin(req: Request, res: Response): Promise<void> {
+    try {
+      const { tempToken, otp } = req.body;
+
+      if (!tempToken || !otp) {
+        res.status(400).json({
+          success: false,
+          message: 'Temp token and OTP are required',
+        });
+        return;
+      }
+
+      // Verify temp token
+      let decoded;
+      try {
+        decoded = jwt.verify(tempToken, JWT_SECRET) as any;
+        if (decoded.purpose !== '2fa') {
+          throw new Error('Invalid token purpose');
+        }
+      } catch (error) {
+        res.status(401).json({
+          success: false,
+          message: 'Invalid or expired token',
+        });
+        return;
+      }
+
+      // Find user and verify OTP
+      const user = await User.findById(decoded.userId).select('+emailVerificationToken +emailVerificationExpires');
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+
+      // Check OTP
+      logger.info(`Verifying OTP for user ${user.email}: received=${otp}, stored=${user.emailVerificationToken}`);
+      
+      if (user.emailVerificationToken !== otp) {
+        logger.warn(`Invalid OTP for user ${user.email}`);
+        res.status(401).json({
+          success: false,
+          message: 'Invalid OTP code',
+        });
+        return;
+      }
+
+      // Check OTP expiry
+      if (!user.emailVerificationExpires || user.emailVerificationExpires < new Date()) {
+        res.status(401).json({
+          success: false,
+          message: 'OTP has expired',
+        });
+        return;
+      }
+
+      // Clear OTP
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpires = undefined;
+      await user.save();
+
+      // Generate real tokens
+      const accessToken = jwt.sign(
+        { userId: user._id, email: user.email },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+      );
+
+      const refreshToken = crypto.randomBytes(64).toString('hex');
+      const refreshTokenExpiry = new Date();
+      refreshTokenExpiry.setDate(refreshTokenExpiry.getDate() + 7);
+
+      // Save refresh token
+      await RefreshToken.create({
+        userId: user._id,
+        token: refreshToken,
+        expiresAt: refreshTokenExpiry,
+      });
+
+      logger.info(`2FA verified for user: ${user.email}`);
+
+      res.status(200).json({
+        success: true,
+        token: accessToken,
+        refreshToken: refreshToken,
+        user: {
+          id: user._id,
+          email: user.email,
+        },
+        encryptedDEK: user.protectedSymmetricKey,
+        dekIV: user.dekIV,
+      });
+    } catch (error) {
+      logger.error('2FA verification error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Verification failed',
       });
     }
   }
@@ -459,6 +595,51 @@ export class AuthController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve salt',
+      });
+    }
+  }
+
+  /**
+   * Toggle 2FA for user
+   */
+  static async toggle2FA(req: Request, res: Response): Promise<void> {
+    try {
+      const { email, enabled } = req.body;
+
+      if (!email || typeof enabled !== 'boolean') {
+        res.status(400).json({
+          success: false,
+          message: 'Email and enabled status are required',
+        });
+        return;
+      }
+
+      const user = await User.findOne({ email });
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+        return;
+      }
+
+      user.twoFactorEnabled = enabled;
+      await user.save();
+
+      logger.info(`2FA ${enabled ? 'enabled' : 'disabled'} for user: ${email}`);
+
+      res.status(200).json({
+        success: true,
+        message: `2FA ${enabled ? 'enabled' : 'disabled'} successfully`,
+        data: {
+          twoFactorEnabled: user.twoFactorEnabled
+        }
+      });
+    } catch (error) {
+      logger.error('Toggle 2FA error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to toggle 2FA',
       });
     }
   }

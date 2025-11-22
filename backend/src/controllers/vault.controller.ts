@@ -8,15 +8,15 @@ export class VaultController {
    */
   static async getItems(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user?.userId || 'temp-user-id-for-testing';
-      // Temporarily disabled auth check for testing
-      // if (!userId) {
-      //   res.status(401).json({
-      //     success: false,
-      //     message: 'User not authenticated',
-      //   });
-      //   return;
-      // }
+      const userId = req.user?.userId;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
 
       const { type, category, favorite, search } = req.query;
 
@@ -55,15 +55,15 @@ export class VaultController {
    */
   static async getItem(req: Request, res: Response): Promise<void> {
     try {
-      const userId = req.user?.userId || 'temp-user-id-for-testing';
-      // Temporarily disabled auth check for testing
-      // if (!userId) {
-      //   res.status(401).json({
-      //     success: false,
-      //     message: 'User not authenticated',
-      //   });
-      //   return;
-      // }
+      const userId = req.user?.userId;
+      
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+        });
+        return;
+      }
 
       const { id } = req.params;
 

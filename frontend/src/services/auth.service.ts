@@ -88,6 +88,19 @@ export class AuthService {
 
       const authResponse: AuthResponse = response.data;
 
+      // Check if 2FA is required - if so, return early without DEK
+      if ((authResponse as any).requires2FA) {
+        console.log('🔐 [Login] 2FA required, storing encryption key and returning tempToken');
+        // Store encryption key temporarily for OTP verification (as hex)
+        const encKeyRaw = await crypto.subtle.exportKey('raw', encryptionKey);
+        const encKeyHex = Array.from(new Uint8Array(encKeyRaw))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+        sessionStorage.setItem('tempEncKey', encKeyHex);
+        console.log('✅ [Login] Encryption key stored in sessionStorage');
+        return authResponse as any;
+      }
+
       console.log('🔐 [Login] Step 9: Decrypting DEK...');
       let dek: CryptoKey;
       
@@ -139,6 +152,101 @@ export class AuthService {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
     }
+  }
+
+  /**
+   * Verify OTP for 2FA
+   */
+  static async verifyOTP(tempToken: string, otp: string): Promise<{ authResponse: AuthResponse; dek: CryptoKey }> {
+    console.log('🔐 [Verify OTP] Starting...');
+    
+    const response = await apiClient.post('/auth/verify-2fa-login', {
+      tempToken,
+      otp
+    });
+
+    const authResponse: AuthResponse = response.data;
+    
+    // Decrypt DEK
+    console.log('🔐 [Verify OTP] Decrypting DEK...');
+    let dek: CryptoKey;
+    
+    if (authResponse.encryptedDEK === 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB8=') {
+      console.log('⚠️ [Verify OTP] Test mode detected - using fixed DEK');
+      const fixedKeyData = new Uint8Array(32);
+      dek = await crypto.subtle.importKey(
+        'raw',
+        fixedKeyData,
+        { name: 'AES-GCM', length: 256 },
+        true,
+        ['encrypt', 'decrypt']
+      );
+    } else {
+      // Get encryption key from sessionStorage (stored during login)
+      const encKeyHex = sessionStorage.getItem('tempEncKey');
+      if (!encKeyHex) {
+        console.error('❌ [Verify OTP] Encryption key not found in sessionStorage');
+        throw new Error('Encryption key not found. Please login again.');
+      }
+      
+      console.log('🔐 [Verify OTP] Restoring encryption key from hex...');
+      const encKeyRaw = new Uint8Array(
+        encKeyHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16))
+      );
+      const encryptionKey = await crypto.subtle.importKey(
+        'raw',
+        encKeyRaw,
+        { name: 'AES-GCM', length: 256 },
+        true,
+        ['encrypt', 'decrypt']
+      );
+      console.log('✅ [Verify OTP] Encryption key restored successfully');
+      
+      // Decrypt DEK using encryption key
+      console.log('🔐 [Verify OTP] Decrypting DEK with encryption key...');
+      console.log('🔍 [Verify OTP] encryptedDEK:', authResponse.encryptedDEK);
+      console.log('🔍 [Verify OTP] dekIV:', authResponse.dekIV);
+      try {
+        const encryptedData = {
+          ciphertext: authResponse.encryptedDEK,
+          iv: authResponse.dekIV
+        };
+        dek = await ClientCryptoService.decryptDEK(encryptedData, encryptionKey);
+        console.log('✅ [Verify OTP] DEK decrypted successfully');
+      } catch (error) {
+        console.error('❌ [Verify OTP] Failed to decrypt DEK:', error);
+        throw new Error('Failed to decrypt data encryption key. Please try again.');
+      }
+      
+      // Clear temp encryption key
+      sessionStorage.removeItem('tempEncKey');
+    }
+
+    localStorage.setItem('token', authResponse.token);
+    localStorage.setItem('refreshToken', authResponse.refreshToken);
+
+    // Store user and DEK for persistence
+    localStorage.setItem('user', JSON.stringify(authResponse.user));
+    const dekRaw = await crypto.subtle.exportKey('raw', dek);
+    const dekBase64 = btoa(String.fromCharCode(...new Uint8Array(dekRaw)));
+    localStorage.setItem('dekRaw', dekBase64);
+
+    console.log('✅ [Verify OTP] Complete!');
+    return { authResponse, dek };
+  }
+
+  /**
+   * Resend OTP
+   */
+  static async resendOTP(tempToken: string): Promise<void> {
+    await apiClient.post('/auth/resend-otp', { tempToken });
+  }
+
+  /**
+   * Toggle 2FA
+   */
+  static async toggle2FA(email: string, enabled: boolean): Promise<void> {
+    await apiClient.post('/auth/toggle-2fa', { email, enabled });
   }
 
   /**

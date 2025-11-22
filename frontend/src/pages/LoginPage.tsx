@@ -45,7 +45,20 @@ const LoginPage: React.FC = () => {
       setIsLoading(true);
       console.log('🚀 [LoginPage] Calling login function...');
       
-      await login(formData.email, formData.masterPassword);
+      const result = await login(formData.email, formData.masterPassword);
+      
+      // Check if 2FA is required
+      if (result && (result as any).requires2FA) {
+        console.log('🔐 [LoginPage] 2FA required, redirecting to OTP page...');
+        toast.success('Mã OTP đã được gửi đến email của bạn!');
+        navigate('/verify-otp', { 
+          state: { 
+            tempToken: (result as any).tempToken,
+            email: formData.email 
+          } 
+        });
+        return;
+      }
       
       // Save credentials if remember me is checked
       if (formData.rememberMe) {

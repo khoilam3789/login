@@ -48,7 +48,7 @@ export class ClientCryptoService {
       ['deriveBits', 'deriveKey']
     );
 
-    // Derive Encryption Key (EK)
+    // Derive Encryption Key (EK) - must be extractable to derive auth key and store
     const encryptionKey = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
@@ -61,7 +61,7 @@ export class ClientCryptoService {
         name: 'AES-GCM',
         length: this.KEY_SIZE
       },
-      true,
+      true, // extractable = true
       ['encrypt', 'decrypt']
     );
 
@@ -89,7 +89,7 @@ export class ClientCryptoService {
       this.KEY_SIZE
     );
 
-    // Import EK back as non-extractable
+    // Import EK back as extractable (needed for 2FA to store temporarily)
     const finalEncryptionKey = await crypto.subtle.importKey(
       'raw',
       ekRaw,
@@ -97,7 +97,7 @@ export class ClientCryptoService {
         name: 'AES-GCM',
         length: this.KEY_SIZE
       },
-      false,
+      true,
       ['encrypt', 'decrypt']
     );
 
@@ -184,7 +184,7 @@ export class ClientCryptoService {
         name: 'AES-GCM',
         length: this.KEY_SIZE
       },
-      false,
+      true, // extractable = true to allow export to localStorage
       ['encrypt', 'decrypt']
     );
   }

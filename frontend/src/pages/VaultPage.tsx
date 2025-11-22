@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 const VaultPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { items, isLoading, createVaultItem, updateVaultItem, deleteVaultItem, toggleFavorite } = useVault();
+  const { items, isLoading, createVaultItem, updateVaultItem, deleteVaultItem } = useVault();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -32,8 +32,8 @@ const VaultPage: React.FC = () => {
 
   const filteredItems = items.filter(item => {
     const matchesSearch = 
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.url?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
@@ -161,29 +161,6 @@ const VaultPage: React.FC = () => {
           </Button>
         </div>
 
-        {/* Category Filter */}
-        <div className="flex space-x-2 mb-6 overflow-x-auto pb-2">
-          {[
-            { value: 'all', label: 'Tất cả', icon: '📂' },
-            { value: 'login', label: 'Đăng nhập', icon: '🔐' },
-            { value: 'card', label: 'Thẻ', icon: '💳' },
-            { value: 'note', label: 'Ghi chú', icon: '📝' },
-            { value: 'identity', label: 'Danh tính', icon: '👤' }
-          ].map(cat => (
-            <button
-              key={cat.value}
-              onClick={() => setSelectedCategory(cat.value)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                selectedCategory === cat.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              {cat.icon} {cat.label}
-            </button>
-          ))}
-        </div>
-
         {/* Vault Items */}
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -208,11 +185,8 @@ const VaultPage: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 flex items-center">
+                      <h3 className="font-semibold text-gray-900">
                         {item.title}
-                        {item.favorite && (
-                          <span className="ml-2 text-yellow-500">⭐</span>
-                        )}
                       </h3>
                       <p className="text-sm text-gray-600">{item.username}</p>
                       {item.url && (
@@ -226,14 +200,6 @@ const VaultPage: React.FC = () => {
                         </a>
                       )}
                     </div>
-                    <button
-                      onClick={() => toggleFavorite(item.id)}
-                      className="text-gray-400 hover:text-yellow-500"
-                    >
-                      <svg className="w-5 h-5" fill={item.favorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                      </svg>
-                    </button>
                   </div>
 
                   <div className="flex items-center space-x-2">
@@ -288,20 +254,6 @@ const VaultPage: React.FC = () => {
             required
           />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Danh mục</label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value as VaultItem['category'] })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="login">Đăng nhập</option>
-              <option value="card">Thẻ</option>
-              <option value="note">Ghi chú</option>
-              <option value="identity">Danh tính</option>
-            </select>
-          </div>
-
           <Input
             label="Tên đăng nhập / Email"
             value={formData.username}
@@ -336,16 +288,6 @@ const VaultPage: React.FC = () => {
               rows={3}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
-
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              checked={formData.favorite}
-              onChange={(e) => setFormData({ ...formData, favorite: e.target.checked })}
-              className="mr-2"
-            />
-            <label className="text-sm text-gray-700">Đánh dấu là yêu thích</label>
           </div>
 
           <div className="flex space-x-2 pt-4">

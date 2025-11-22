@@ -26,7 +26,6 @@ const refreshTokenSchema = new Schema<IRefreshToken>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     ipAddress: {
       type: String,

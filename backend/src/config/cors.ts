@@ -24,7 +24,8 @@ export const corsOptions: CorsOptions = {
     'Authorization',
     'X-Requested-With',
     'X-OTP-Token',
-    'X-Device-ID'
+    'X-Device-ID',
+    'x-user-email'
   ],
   exposedHeaders: ['X-Request-ID', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
   maxAge: 600 // 10 minutes

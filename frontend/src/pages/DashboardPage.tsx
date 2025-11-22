@@ -17,7 +17,6 @@ const DashboardPage: React.FC = () => {
 
   const stats = {
     total: items.length,
-    favorites: items.filter(i => i.favorite).length,
     logins: items.filter(i => i.category === 'login').length,
     cards: items.filter(i => i.category === 'card').length,
     notes: items.filter(i => i.category === 'note').length
@@ -48,26 +47,10 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 gap-4 mb-8">
           <Card className="text-center">
             <div className="text-3xl font-bold text-blue-600 mb-2">{stats.total}</div>
             <div className="text-sm text-gray-600">Tổng số mục</div>
-          </Card>
-          <Card className="text-center">
-            <div className="text-3xl font-bold text-yellow-600 mb-2">{stats.favorites}</div>
-            <div className="text-sm text-gray-600">Yêu thích</div>
-          </Card>
-          <Card className="text-center">
-            <div className="text-3xl font-bold text-green-600 mb-2">{stats.logins}</div>
-            <div className="text-sm text-gray-600">Đăng nhập</div>
-          </Card>
-          <Card className="text-center">
-            <div className="text-3xl font-bold text-purple-600 mb-2">{stats.cards}</div>
-            <div className="text-sm text-gray-600">Thẻ</div>
-          </Card>
-          <Card className="text-center">
-            <div className="text-3xl font-bold text-gray-600 mb-2">{stats.notes}</div>
-            <div className="text-sm text-gray-600">Ghi chú</div>
           </Card>
         </div>
 
@@ -147,8 +130,8 @@ const DashboardPage: React.FC = () => {
                           </svg>
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900">{item.title}</div>
-                          <div className="text-sm text-gray-500">{item.username}</div>
+                          <div className="font-medium text-gray-900">{item.title || 'Không có tiêu đề'}</div>
+                          <div className="text-sm text-gray-500">{item.username || 'Không có username'}</div>
                         </div>
                       </div>
                       <div className="text-sm text-gray-500">
